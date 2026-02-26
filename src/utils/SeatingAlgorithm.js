@@ -36,10 +36,11 @@ export const arrangeStudents = async (students, currentDesks) => {
 
 1. ВСЕ люди с плохим зрением ("Плохое") ОБЯЗАНЫ быть в первых парах (как можно ближе к началу списка). Это самое важное правило.
 
-2. Среди людей с плохим зрением, если кто-то ВЫШЕ остальных — он должен быть по краям, а не в центре. Конкретно:
-   - Первый высокий с плохим зрением → пара 1, позиция A (первый в паре).
-   - Второй высокий с плохим зрением → пара 3, позиция B (второй в паре).
-   Остальные с плохим зрением заполняют пары 1-3 на оставшиеся позиции.
+2. Среди людей с ПЛОХИМ зрением, найди самых ВЫСОКИХ (выше остальных с плохим зрением). Размести их так:
+   - Первый самый высокий с плохим зрением → пара 1, позиция A.
+   - Второй самый высокий с плохим зрением → пара 3, позиция B.
+   Остальные люди с плохим зрением заполняют оставшиеся места в парах 1-3.
+   ВАЖНО: в пары 1-3 попадают ТОЛЬКО люди с плохим зрением (не с хорошим!).
 
 3. Остальные люди сортируются по росту: низкие — ближе к началу, высокие — ближе к концу.
 
@@ -84,19 +85,35 @@ ${JSON.stringify(studentsData, null, 2)}
   const studentMap = new Map();
   students.forEach(s => studentMap.set(s.getFullName(), s));
 
-  // Маппим пары на парты: пара → парта
+  // Маппим пары на парты с валидацией
+  const usedStudents = new Set();
   const desks = parsed.pairs.map(pair => {
     const desk = new Desk();
-    if (pair[0]) {
-      const s = studentMap.get(pair[0]);
-      if (s) desk.setStudent1(s);
+    const nameA = pair[0] && pair[0] !== 'null' ? pair[0] : null;
+    const nameB = pair[1] && pair[1] !== 'null' ? pair[1] : null;
+
+    if (nameA && !usedStudents.has(nameA)) {
+      const s = studentMap.get(nameA);
+      if (s) { desk.setStudent1(s); usedStudents.add(nameA); }
     }
-    if (pair[1]) {
-      const s = studentMap.get(pair[1]);
-      if (s) desk.setStudent2(s);
+    if (nameB && !usedStudents.has(nameB)) {
+      const s = studentMap.get(nameB);
+      if (s) { desk.setStudent2(s); usedStudents.add(nameB); }
     }
     return desk;
   });
+
+  // Находим пропущенных учеников и добавляем на свободные места
+  const missing = students.filter(s => !usedStudents.has(s.getFullName()));
+  if (missing.length > 0) {
+    for (const student of missing) {
+      const emptyDesk = desks.find(d => !d.getStudent1() || !d.getStudent2());
+      if (emptyDesk) {
+        if (!emptyDesk.getStudent1()) emptyDesk.setStudent1(student);
+        else if (!emptyDesk.getStudent2()) emptyDesk.setStudent2(student);
+      }
+    }
+  }
 
   // Если парт меньше чем нужно, дополняем пустыми
   while (desks.length < totalDesks) {
