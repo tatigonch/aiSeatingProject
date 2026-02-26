@@ -29,49 +29,44 @@ export const arrangeStudents = async (students, currentDesks) => {
 
   // Сортируем учеников по росту для подсказки AI
   const sortedByHeight = [...studentsData].sort((a, b) => a.height - b.height);
-  const heightList = sortedByHeight.map(s => `${s.name}: ${s.height}см`).join(', ');
+  const heightList = sortedByHeight.map(s => `${s.name}(${s.height}см, зрение:${s.vision})`).join(', ');
 
-  // Находим учеников с плохим зрением и высоким ростом (топ-30% самых высоких среди плоховидящих)
-  const badVisionStudents = studentsData.filter(s => s.vision === 'Плохое');
-  let tallBadVisionNote = '';
-  if (badVisionStudents.length > 0) {
-    const badVisionHeights = badVisionStudents.map(s => s.height).sort((a, b) => b - a);
-    const topCount = Math.max(2, Math.ceil(badVisionStudents.length * 0.3));
-    const heightThreshold = badVisionHeights[Math.min(topCount - 1, badVisionHeights.length - 1)];
-    const tallBadVision = badVisionStudents.filter(s => s.height >= heightThreshold).map(s => s.name);
-    if (tallBadVision.length > 0) {
-      tallBadVisionNote = `\nОСОБАЯ ГРУППА — ученики с плохим зрением И высоким ростом (≥${heightThreshold}см): ${tallBadVision.join(', ')}. Их нужно посадить в ПЕРВЫЙ ряд, но ТОЛЬКО по краям (парта 0 — место student1, парта 2 — место student2). Максимум 3 человека на каждый край.`;
-    }
-  }
+  // Вычисляем сколько мест в каждом ряду
+  const seatsPerRow = columnCount * 2;
 
-  const prompt = `Ты — алгоритм рассадки учеников в классе. Класс: ${columnCount} колонки × ${rowCount} рядов = ${totalDesks} парт. Каждая парта — 2 места (student1 слева, student2 справа). Нумерация парт слева направо, сверху вниз: парты 0,1,2 = ряд 1 (ближайший к доске), парты 3,4,5 = ряд 2, и т.д.
+  const prompt = `Ты — алгоритм рассадки учеников в классе.
 
-Колонки: левая (парты 0,3,6,...), центральная (парты 1,4,7,...), правая (парты 2,5,8,...).
+КЛАСС: ${columnCount} колонки × ${rowCount} рядов = ${totalDesks} парт.
+Каждая парта = 2 места (student1 слева, student2 справа).
+Парты слева направо, сверху вниз: парты 0,1,2 = ряд 1 (у доски), 3,4,5 = ряд 2, и т.д.
+Край класса: левая колонка (парты 0,3,6,...) и правая колонка (парты 2,5,8,...).
+Центр: парты 1,4,7,...
+В каждом ряду ${seatsPerRow} мест.
 
-=== СТРОГИЕ ПРАВИЛА (нарушать НЕЛЬЗЯ) ===
+Всего учеников: ${studentsData.length}. Вот они по возрастанию роста:
+${heightList}
 
-1. РОСТ → РЯД: Ученики ДОЛЖНЫ быть рассажены по росту — самые низкие в первых рядах, самые высокие в последних. Это главное правило! Вот ученики по возрастанию роста: ${heightList}. Распредели их по рядам соответственно — низкие вперёд, высокие назад.
+РЕШИ ЗАДАЧУ ПОШАГОВО:
 
-2. КОНФЛИКТЫ: Конфликтующие ученики НЕ ДОЛЖНЫ сидеть за одной партой.
+ШАГ 1. Раздели учеников на группы по росту и распредели по рядам.
+- Самые низкие → ряд 1 (у доски), самые высокие → последний ряд.
+- В каждом ряду ${seatsPerRow} мест. Заполняй ряды по порядку от низких к высоким.
+- Исключение: ученики с плохим зрением ("Плохое") сдвигаются на 1-2 ряда ближе к доске, даже если они выше.
 
-=== ПРИОРИТЕТНЫЕ ПРАВИЛА ===
+ШАГ 2. Внутри каждого ряда расставь учеников по партам.
+- Если ученик высокий для своего ряда (выше среднего в этом ряду) — ставь его по КРАЯМ (левая/правая колонка), чтобы не загораживал.
+- Конфликтующие ученики НЕ ДОЛЖНЫ сидеть за одной партой (строгое ограничение).
+- Желаемых соседей старайся сажать за одну парту (мягкое ограничение).
 
-3. ЗРЕНИЕ: Ученики с плохим зрением ("Плохое") должны сидеть как можно ближе к доске (в первых рядах). Это важнее правила роста — ученик с плохим зрением сдвигается на 1-2 ряда вперёд даже если он выше соседей.
-${tallBadVisionNote}
-
-4. ВЫСОКИЕ ПО КРАЯМ: Если высокий ученик вынужден сидеть не в последних рядах (например, из-за плохого зрения), посади его по краям (левая или правая колонка), чтобы он не загораживал другим обзор доски.
-
-=== МЯГКИЕ ПРАВИЛА ===
-
-5. ЖЕЛАЕМЫЕ СОСЕДИ: По возможности сажай желаемых соседей за одну парту, но не в ущерб строгим правилам.
+ШАГ 3. Сформируй итоговый JSON.
 
 Данные учеников:
 ${JSON.stringify(studentsData, null, 2)}
 
-Верни ТОЛЬКО JSON:
+ВАЖНО: Сначала напиши своё решение по шагам (распределение по рядам, потом по партам), а в самом конце выдай JSON:
 {
   "desks": [
-    { "student1": "Имя ученика" или null, "student2": "Имя ученика" или null },
+    { "student1": "Имя" или null, "student2": "Имя" или null },
     ...
   ]
 }
@@ -86,12 +81,17 @@ ${JSON.stringify(studentsData, null, 2)}
   const response = await client.chat.completions.create({
     model: 'gpt-4o-mini',
     messages: [{ role: 'user', content: prompt }],
-    response_format: { type: 'json_object' },
-    temperature: 0.7,
+    temperature: 0.2,
   });
 
   const content = response.choices[0].message.content;
-  const parsed = JSON.parse(content);
+
+  // AI думает вслух, JSON в конце ответа — извлекаем его
+  const jsonMatch = content.match(/\{[\s\S]*"desks"[\s\S]*\}/);
+  if (!jsonMatch) {
+    throw new Error('Не удалось извлечь JSON из ответа AI');
+  }
+  const parsed = JSON.parse(jsonMatch[0]);
 
   if (!parsed.desks || !Array.isArray(parsed.desks)) {
     throw new Error('Некорректный ответ от OpenAI: отсутствует массив desks');
