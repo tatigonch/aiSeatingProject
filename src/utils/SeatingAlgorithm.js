@@ -68,7 +68,7 @@ ${JSON.stringify(studentsData, null, 2)}
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'openai/gpt-4.1-nano',
+      model: 'openai/gpt-4.1-mini',
       messages: [{ role: 'user', content: prompt }],
       response_format: { type: 'json_object' },
       temperature: 0.2,
