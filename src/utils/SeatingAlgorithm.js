@@ -1,17 +1,16 @@
-import OpenAI from 'openai';
 import { Desk } from '../models/Desk';
 
 /**
- * Рассадка студентов по партам с помощью OpenAI API
+ * Рассадка студентов по партам с помощью OpenRouter API
  *
  * @param {Array} students - Массив всех студентов для рассадки
  * @param {Array} currentDesks - Текущий массив парт (используется для определения количества)
  * @returns {Promise<Array>} Массив парт с размещенными студентами
  */
 export const arrangeStudents = async (students, currentDesks) => {
-  const apiKey = process.env.REACT_APP_OPENAI_API_KEY;
+  const apiKey = process.env.REACT_APP_OPENROUTER_API_KEY;
   if (!apiKey) {
-    throw new Error('API ключ OpenAI не настроен. Добавьте REACT_APP_OPENAI_API_KEY в файл .env');
+    throw new Error('API ключ OpenRouter не настроен. Добавьте REACT_APP_OPENROUTER_API_KEY в файл .env');
   }
 
   const columnCount = 3;
@@ -62,19 +61,27 @@ ${JSON.stringify(studentsData, null, 2)}
 
 Ровно ${totalDesks} пар. Каждый человек ровно один раз. Если мест больше чем людей — заполни null.`;
 
-  const client = new OpenAI({
-    apiKey,
-    dangerouslyAllowBrowser: true,
+  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'openai/gpt-4.1-nano',
+      messages: [{ role: 'user', content: prompt }],
+      response_format: { type: 'json_object' },
+      temperature: 0.2,
+    }),
   });
 
-  const response = await client.chat.completions.create({
-    model: 'gpt-4.1-mini',
-    messages: [{ role: 'user', content: prompt }],
-    response_format: { type: 'json_object' },
-    temperature: 0.2,
-  });
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(`Ошибка OpenRouter API: ${response.status} ${errorData.error?.message || response.statusText}`);
+  }
 
-  const content = response.choices[0].message.content;
+  const data = await response.json();
+  const content = data.choices[0].message.content;
   const parsed = JSON.parse(content);
 
   if (!parsed.pairs || !Array.isArray(parsed.pairs)) {
