@@ -33,7 +33,7 @@ jobs:
       - name: Build
         run: npm run build
         env:
-          REACT_APP_OPENAI_API_KEY: ${{ secrets.REACT_APP_OPENAI_API_KEY }}
+          REACT_APP_OPENROUTER_API_KEY: ${{ secrets.REACT_APP_OPENROUTER_API_KEY }}
         
       - name: Setup Pages
         uses: actions/configure-pages@v4
