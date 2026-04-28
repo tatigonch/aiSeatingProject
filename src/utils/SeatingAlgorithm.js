@@ -73,7 +73,7 @@ ${JSON.stringify(studentsData, null, 2)}
       model: 'anthropic/claude-sonnet-4.6',
       messages: [{ role: 'user', content: prompt }],
       response_format: { type: 'json_object' },
-      temperature: 0.2,
+      temperature: 0.7,
     }),
   });
 
