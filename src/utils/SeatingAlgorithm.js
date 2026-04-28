@@ -71,7 +71,10 @@ ${JSON.stringify(studentsData, null, 2)}
     },
     body: JSON.stringify({
       model: 'anthropic/claude-sonnet-4.6',
-      messages: [{ role: 'user', content: prompt }],
+      messages: [
+        { role: 'user', content: prompt },
+        { role: 'assistant', content: '{"pairs":' },
+      ],
       response_format: { type: 'json_object' },
       temperature: 0.2,
     }),
@@ -84,7 +87,19 @@ ${JSON.stringify(studentsData, null, 2)}
 
   const data = await response.json();
   const content = data.choices[0].message.content;
-  const parsed = JSON.parse(content);
+
+  // Claude иногда добавляет текст или продолжает с prefill — извлекаем JSON-объект из ответа
+  const extractJson = (text) => {
+    try { return JSON.parse(text); } catch (_) {}
+    try { return JSON.parse('{"pairs":' + text); } catch (_) {}
+    const match = text.match(/\{[\s\S]*}/);
+    if (match) {
+      try { return JSON.parse(match[0]); } catch (_) {}
+    }
+    throw new Error('Не удалось распарсить JSON из ответа AI: ' + text.slice(0, 200));
+  };
+
+  const parsed = extractJson(content);
 
   if (!parsed.pairs || !Array.isArray(parsed.pairs)) {
     throw new Error('Некорректный ответ от AI: отсутствует массив pairs');
